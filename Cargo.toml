@@ -1,0 +1,28 @@
+[package]
+name = "rust-spp"
+version = "0.1.0"
+authors = ["Ricardo Pieper <ricardopieper@live.com>"]
+edition = "2018"
+
+[dependencies]
+rand = "0.6.5"
+lazy_static = "1.3.0"
+raster = "0.2.0"
+clap = "2.33.0"
+num_cpus = "1.0"
+rayon = "1.0.3"
+time = "0.1.42"
+tokio = "0.1.19"
+futures = "0.1"
+tokio-core = "0.1.17"
+parking_lot = "*"
+[dev-dependencies]
+criterion = "0.2"
+
+[[bench]]
+name = "mandelbrot_rustspp"
+harness = false
+
+[[bench]]
+name = "mandelbrot_pixbypix"
+harness = false

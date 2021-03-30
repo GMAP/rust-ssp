@@ -4,22 +4,20 @@ use std::thread::JoinHandle;
 use crate::blocks::*;
 use crate::work_storage::WorkItem;
 
-pub struct Pipeline<TInput, TOutput, TCollected> {
+pub struct Pipeline<TStage: InOut<TInput, TOutput>, TFactory: FnMut() -> TStage, TInput, TOutput, TCollected> {
     signaled_end: bool,
-    initial_block: Option<InOutBlock<TInput, TOutput, TCollected>>,
+    initial_block: Option<InOutBlock<TStage, TFactory, TInput, TOutput, TCollected>>,
     monitors: Vec<MonitorLoop>,
     threads: Vec<JoinHandle<()>>
 }
 
-impl<TInput: 'static, TOutput: 'static, TCollected: 'static> Pipeline<TInput, TOutput, TCollected> 
-where
-    TInput: Send,
-    TInput: Sync {
+impl<TStage: InOut<TInput, TOutput>, TFactory: FnMut() -> TStage, TInput: 'static, TOutput: 'static, TCollected: 'static> Pipeline<TStage, TFactory,TInput, TOutput, TCollected> 
+{
    
     pub fn new(
-        initial_block: InOutBlock<TInput, TOutput, TCollected>,
+        initial_block: InOutBlock<TStage, TFactory, TInput, TOutput, TCollected>,
         monitors: Vec<MonitorLoop>
-    ) -> Pipeline<TInput, TOutput, TCollected> {
+    ) -> Pipeline<TStage, TFactory, TInput, TOutput, TCollected> {
         Pipeline {
             initial_block: Some(initial_block),
             monitors: monitors,
@@ -81,7 +79,7 @@ where
     }
 }
 
-impl<TInput, TOutput, TCollected> Drop for Pipeline<TInput, TOutput, TCollected> {
+impl<TStage: InOut<TInput, TOutput>, TFactory: FnMut() -> TStage, TInput, TOutput, TCollected> Drop for Pipeline<TStage, TFactory, TInput, TOutput, TCollected> {
     fn drop(&mut self) {
 
         let block = std::mem::replace(&mut self.initial_block, None);
@@ -136,7 +134,8 @@ macro_rules! pipeline {
             let (mode, factory) = $s1;
             let mut block = InOutBlock::new(
                 Box::new(pipeline_propagate!(monitors, $($tail),*)),
-                mode, factory);
+                mode, 
+                factory);
             monitors.extend(block.monitor_posts());
 
             let mut pipeline = Pipeline::new(block, monitors);
@@ -152,7 +151,7 @@ macro_rules! parallel {
     ($block:expr, $threads:expr) => {
         {
             let mode = BlockMode::Parallel($threads);
-            let factory: Box<FnMut() -> Box<InOut<_,_>>> = Box::new(move || Box::new($block));
+            let factory = move || $block;
             (mode, factory)
         }
     };

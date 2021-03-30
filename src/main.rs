@@ -19,7 +19,7 @@ fn leak_test() {
                 Some(item * 2) 
             }
         }, 20),
-        sequential!(|item: i32| {
+        sequential_ordered!(|item: i32| {
             println!("number: {:?}", item);
         })
     ];
@@ -29,12 +29,36 @@ fn leak_test() {
     }
 }
 
+struct SyncNotNeeded {
+    test: std::rc::Rc<i64>
+}
+
+unsafe impl Send for SyncNotNeeded {}
+
+fn send_sync_notneeded() {
+    let pipeline = pipeline![
+        parallel!(|item: SyncNotNeeded| { 
+            Some(item) 
+        }, 20),
+        parallel!(|item: SyncNotNeeded| { 
+            Some(item)
+        }, 20),
+        sequential_ordered!(|item: SyncNotNeeded| {
+            println!("number: {:?}", item.test);
+        })
+    ];
+
+    for i in 1..1000 {
+        pipeline.post(SyncNotNeeded { test: std::rc::Rc::new(1) }).unwrap()
+    }
+}
+
 
 fn main() {
 
     leak_test();
 
-
+    send_sync_notneeded();
 
 /*
     let matches = App::new("Rust-SPP tests")

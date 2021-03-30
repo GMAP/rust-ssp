@@ -27,7 +27,7 @@ struct ImageLine {
 }
 
 
-fn render_line(size: usize, line: usize) -> ImageLine {
+fn render_line(size: usize, line: usize) -> Option<ImageLine> {
 
     let init_a = -2.125 as f64;
     let init_b = -1.5 as f64;
@@ -59,10 +59,10 @@ fn render_line(size: usize, line: usize) -> ImageLine {
         }
         m[j] = (255 as f64 - (((k as f64) * 255 as f64 / (iterations as f64)))) as u8;
     }
-    return ImageLine {
+    return Some(ImageLine {
         line_index: line as usize,
         line_buffer: m
-    };
+    });
 }
 
 struct ComputeLine {
@@ -74,7 +74,7 @@ impl ComputeLine {
     }
 }
 impl InOut<usize, ImageLine> for ComputeLine {
-    fn process(&mut self, image_line: usize) -> ImageLine { 
+    fn process(&mut self, image_line: usize) -> Option<ImageLine> { 
         render_line(self.size, image_line)
     }
 }
@@ -88,7 +88,7 @@ impl In<ImageLine, ImageLine> for RenderLine {
     }
 }
 
-fn mandelbrot_sequential(size: usize) -> Vec<ImageLine> {
+fn mandelbrot_sequential(size: usize) -> Vec<Option<ImageLine>> {
     (0 .. size).into_iter()
         .map(|image_line| render_line(size, image_line))
         .collect()
@@ -131,7 +131,7 @@ fn mandelbrot_tokio(size: usize, threads: usize) {
         let (sender, receiver) = oneshot::channel::<ImageLine>();
         tokio::spawn(lazy(move || {
             let result = render_line(size, index );
-            sender.send(result).ok();
+            sender.send(result.unwrap()).ok();
             Ok(())
         }));
         receiver
@@ -148,7 +148,7 @@ fn mandelbrot_rayon(size: usize, thread_pool: Rc<rayon::ThreadPool>) -> Vec<Imag
     let mut b = vec![];
     thread_pool.install(|| {
         (0 .. size).into_par_iter()
-            .map(|image_line| { render_line(size, image_line) })
+            .map(|image_line| { render_line(size, image_line).unwrap() })
             .collect_into_vec(&mut b);
     });
     return b;
@@ -164,7 +164,7 @@ fn mandelbrot_tokio_unordered(size: usize, threads: usize) {
         let (sender, receiver) = oneshot::channel::<ImageLine>();
         tokio::spawn(lazy(move ||{
             let result = render_line(size, index);
-            sender.send(result).ok();
+            sender.send(result.unwrap()).ok();
             Ok(())
         }));
         receiver

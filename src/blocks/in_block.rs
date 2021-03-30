@@ -81,13 +81,7 @@ impl <TInput, TCollected> PipelineBlock<TInput, TCollected> for InBlock<TInput, 
 
 
 
-impl<TInput: 'static, TCollected: 'static> InBlock<TInput, TCollected>
-where
-    TInput: Send,
-    TInput: Sync,
-    TCollected: Send,
-    TCollected: Sync,
-{
+impl<TInput: 'static, TCollected: 'static + Send> InBlock<TInput, TCollected> {
     pub fn monitor_posts(&mut self) -> MonitorLoop {
         match self.ordering {
             OrderingMode::Ordered => self.monitor_ordered(),
@@ -111,7 +105,7 @@ where
                 let item = queue.wait_and_dequeue();
                 match item {
                     TimestampedWorkItem(WorkItem::Value(val), order) => {
-                        let collected: TCollected = info.handler.process(val, order);
+                        let collected = info.handler.process(val, order);
                         (*collected_list).push(collected);
                     },
                     TimestampedWorkItem(WorkItem::Dropped, order) => {

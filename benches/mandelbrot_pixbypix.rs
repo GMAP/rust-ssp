@@ -69,10 +69,10 @@ struct CalculatePixelIterations {
     params: Parameters
 }
 impl InOut<(i32, i32), (i32, i32, i32)> for CalculatePixelIterations {
-    fn process(&mut self, position: (i32, i32)) -> (i32, i32, i32) {
+    fn process(&mut self, position: (i32, i32)) -> Option<(i32, i32, i32)> {
         match position {
             (x, y) => {
-                (x, y, calculate_pixel(x, y, self.params.step, self.params.init_a, self.params.init_b))
+                Some((x, y, calculate_pixel(x, y, self.params.step, self.params.init_a, self.params.init_b)))
             }
         }
     }

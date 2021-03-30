@@ -33,7 +33,7 @@ struct SyncNotNeeded {
     test: std::rc::Rc<i64>
 }
 
-unsafe impl Send for SyncNotNeeded {}
+//unsafe impl Send for SyncNotNeeded {}
 
 fn send_sync_notneeded() {
     let pipeline = pipeline![

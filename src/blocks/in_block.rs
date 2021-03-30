@@ -170,4 +170,3 @@ impl<TInput, TCollected> InBlock<TInput, TCollected> {
 }
 
 unsafe impl<TInput, TCollected> Send for InBlockInfo<TInput, TCollected> {}
-unsafe impl<TInput, TCollected> Sync for InBlockInfo<TInput, TCollected> {}

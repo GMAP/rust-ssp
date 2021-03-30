@@ -12,7 +12,7 @@ pub struct Pipeline<TStage: InOut<TInput, TOutput>, TFactory: FnMut() -> TStage,
 }
 
 impl<TStage: InOut<TInput, TOutput>, TFactory: FnMut() -> TStage, TInput: 'static, TOutput: 'static, TCollected: 'static> Pipeline<TStage, TFactory,TInput, TOutput, TCollected> 
-{
+ {
    
     pub fn new(
         initial_block: InOutBlock<TStage, TFactory, TInput, TOutput, TCollected>,

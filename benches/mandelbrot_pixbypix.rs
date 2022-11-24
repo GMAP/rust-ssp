@@ -179,13 +179,17 @@ fn criterion_benchmark(c: &mut Criterion) {
             &format!("rayon {threads} worker threads"),
             &threads,
             |b, &threads| {
-                let pool = Rc::new(ThreadPoolBuilder::new().num_threads(threads as usize).build().unwrap());
-                b.iter(|| mandelbrot_rayon(1000, pool.clone())); 
+                let pool = Rc::new(
+                    ThreadPoolBuilder::new()
+                        .num_threads(threads as usize)
+                        .build()
+                        .unwrap(),
+                );
+                b.iter(|| mandelbrot_rayon(1000, pool.clone()));
             },
         );
     }
     group.finish();
- 
 }
 
 criterion_group!(benches, criterion_benchmark);

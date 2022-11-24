@@ -80,12 +80,12 @@ impl<
 }
 
 impl<
-        TInput: 'static,
-        TOutput: 'static,
-        TCollected: 'static,
-        TStage: InOut<TInput, TOutput> + Send + 'static,
-        TFactory: FnMut() -> TStage,
-        TNextStep: PipelineBlock<TOutput, TCollected> + Send + Sync + 'static,
+    TInput: 'static + Send,
+    TOutput: 'static,
+    TCollected: 'static,
+    TStage: InOut<TInput, TOutput> + Send + 'static,
+    TFactory: FnMut() -> TStage,
+    TNextStep: PipelineBlock<TOutput, TCollected> + Send + Sync + 'static,
     > InOutBlock<TInput, TOutput, TCollected, TStage, TFactory, TNextStep>
 {
     pub fn new(

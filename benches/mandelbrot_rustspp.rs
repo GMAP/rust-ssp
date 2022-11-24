@@ -95,7 +95,7 @@ fn mandelbrot_rustspp(size: usize, threads: usize) {
         pipeline.post(i as usize).unwrap();
     }
     let rendered_image = pipeline.collect();
-    
+
     let mut bytes = 0usize;
     for line in rendered_image {
         bytes += line.line_buffer.len()
@@ -132,7 +132,8 @@ async fn mandelbrot_tokio(size: usize, threads: usize) {
             receiver
         })
         .buffered(threads)
-        .for_each(async move |_rendered_line| {}).await;
+        .for_each(async move |_rendered_line| {})
+        .await;
 }
 
 fn mandelbrot_rayon(size: usize, thread_pool: Rc<rayon::ThreadPool>) -> Vec<ImageLine> {
@@ -158,7 +159,8 @@ async fn mandelbrot_tokio_unordered(size: usize, threads: usize) {
             receiver
         })
         .buffer_unordered(threads)
-        .for_each(async move |_rendered_line| {}).await;
+        .for_each(async move |_rendered_line| {})
+        .await;
 }
 
 fn mandelbrot_benches(c: &mut Criterion) {
@@ -186,7 +188,12 @@ fn mandelbrot_benches(c: &mut Criterion) {
             &format!("rayon {threads} worker threads"),
             &threads,
             |b, &threads| {
-                let pool = Rc::new(ThreadPoolBuilder::new().num_threads(threads as usize).build().unwrap());
+                let pool = Rc::new(
+                    ThreadPoolBuilder::new()
+                        .num_threads(threads as usize)
+                        .build()
+                        .unwrap(),
+                );
                 b.iter(|| mandelbrot_rayon(1000, pool.clone()));
             },
         );
@@ -195,7 +202,7 @@ fn mandelbrot_benches(c: &mut Criterion) {
             &format!("mandelbrot tokio ordered {threads} worker threads"),
             &threads,
             |b, &threads| {
-               b.iter(|| mandelbrot_tokio(1000, threads));
+                b.iter(|| mandelbrot_tokio(1000, threads));
             },
         );
 
@@ -203,11 +210,10 @@ fn mandelbrot_benches(c: &mut Criterion) {
             &format!("mandelbrot tokio unordered {threads} worker threads"),
             &threads,
             |b, &threads| {
-               b.iter(|| mandelbrot_tokio_unordered(1000, threads));
+                b.iter(|| mandelbrot_tokio_unordered(1000, threads));
             },
         );
     }
-
 }
 //criterion_group!(benches, criterion_benchmark);
 criterion_group!(benches, mandelbrot_benches);

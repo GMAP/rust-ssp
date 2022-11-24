@@ -59,6 +59,3 @@ impl<T> BlockingQueue<T> {
         popped.unwrap()
     }
 }
-
-unsafe impl<T> Send for BlockingQueue<T> {}
-unsafe impl<T> Sync for BlockingQueue<T> {}

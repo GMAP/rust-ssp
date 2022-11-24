@@ -39,6 +39,3 @@ impl<T> BlockingOrderedSet<T> {
         }
     }
 }
-
-unsafe impl<T> Send for BlockingOrderedSet<T> {}
-unsafe impl<T> Sync for BlockingOrderedSet<T> {}

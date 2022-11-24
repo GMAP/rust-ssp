@@ -77,7 +77,7 @@ impl<TInput, TCollected, TFactory> PipelineBlock<TInput, TCollected>
 }
 
 impl<
-        TInput: 'static,
+        TInput: 'static + Send,
         TCollected: 'static + Send,
         THandler: In<TInput, TCollected> + Send + 'static,
         TFactory: FnMut() -> THandler,

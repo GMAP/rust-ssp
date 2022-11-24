@@ -1,7 +1,7 @@
 use crate::work_storage::*;
+use parking_lot::{Condvar, Mutex};
 use std::collections::BTreeMap;
-use std::sync::{Arc};
-use parking_lot::{Mutex, Condvar};
+use std::sync::Arc;
 
 pub struct BlockingOrderedSet<T> {
     storage: Mutex<BTreeMap<u64, TimestampedWorkItem<T>>>,
@@ -19,7 +19,7 @@ impl<T> BlockingOrderedSet<T> {
     pub fn enqueue(&self, item: TimestampedWorkItem<T>) {
         let mut queue = self.storage.lock();
         match item {
-            TimestampedWorkItem(_, order) => queue.insert(order, item)
+            TimestampedWorkItem(_, order) => queue.insert(order, item),
         };
         self.new_item_notifier.notify_one();
     }
@@ -33,7 +33,9 @@ impl<T> BlockingOrderedSet<T> {
 
         match removed_item {
             Some(value) => return value,
-            None => { panic!("Condition variable waited until item was found, but removal failed") }
+            None => {
+                panic!("Condition variable waited until item was found, but removal failed")
+            }
         }
     }
 }

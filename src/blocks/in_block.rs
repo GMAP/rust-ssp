@@ -1,50 +1,47 @@
-use crate::*;
 use crate::blocks::*;
-use work_storage::{WorkItem, TimestampedWorkItem};
+use crate::*;
+use parking_lot::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::sync::atomic::{Ordering, AtomicUsize};
-use std::thread::JoinHandle;
 use std::thread;
-use work_storage::{BlockingQueue, BlockingOrderedSet};
-use parking_lot::{Mutex};
+use std::thread::JoinHandle;
+use work_storage::{BlockingOrderedSet, BlockingQueue};
+use work_storage::{TimestampedWorkItem, WorkItem};
 
 //Public API: An output node, receives values and causes side effects
-pub trait In<TInput, TCollected=()> {
+pub trait In<TInput, TCollected = ()> {
     fn process(&mut self, input: TInput, order: u64) -> TCollected;
 }
 
-
-impl <TInput, TCollected, F> In<TInput, TCollected> for F where F: FnMut(TInput) -> TCollected {
+impl<TInput, TCollected, F> In<TInput, TCollected> for F
+where
+    F: FnMut(TInput) -> TCollected,
+{
     fn process(&mut self, input: TInput, _order: u64) -> TCollected {
         (*self)(input)
     }
 }
 
 //Internals: InBlock processing queue for blocks in the pipeline
-pub struct InBlock<TInput, TCollected> {
+pub struct InBlock<TInput, TCollected, TFactory> {
     work_queue: Arc<BlockingQueue<TInput>>,
     ordered_work: Arc<BlockingOrderedSet<TInput>>,
     collected_items: Arc<Mutex<Vec<TCollected>>>,
-    handler: Box<FnMut() -> Box<dyn In<TInput, TCollected>>>,
+    handler: TFactory,
     ordering: OrderingMode,
-    counter: AtomicUsize
+    counter: AtomicUsize,
 }
 
-// Internals: This is a thread-local object for in blocks
-struct InBlockInfo<TInput, TCollected> {
-    handler: Box<dyn In<TInput, TCollected>>
-}
-
-
-impl <TInput, TCollected> PipelineBlock<TInput, TCollected> for InBlock<TInput, TCollected> {
-
+impl<TInput, TCollected, TFactory> PipelineBlock<TInput, TCollected>
+    for InBlock<TInput, TCollected, TFactory>
+{
     //used by the public API
     fn process(&self, input: WorkItem<TInput>) {
         match self.ordering {
             //For the unordered case, just enqueue it
             OrderingMode::Unordered => {
                 (*self.work_queue).enqueue(input);
-            },
+            }
             //For the ordered case: All InBlocks are single threaded
             //so we keep a count. Store under an atomic counter
             //in case we implement a multithreaded outblock
@@ -65,11 +62,11 @@ impl <TInput, TCollected> PipelineBlock<TInput, TCollected> for InBlock<TInput, 
                     (*self.work_queue).enqueue(work_item);
                 }
             },
-            OrderingMode::Ordered => (*self.ordered_work).enqueue(input)
+            OrderingMode::Ordered => (*self.ordered_work).enqueue(input),
         };
     }
 
-    fn collect(self: Box<Self>) -> Vec<TCollected> {
+    fn collect(self) -> Vec<TCollected> {
         match Arc::try_unwrap(self.collected_items) {
             Ok(result) => result.into_inner(),
             Err(_) => {
@@ -79,23 +76,24 @@ impl <TInput, TCollected> PipelineBlock<TInput, TCollected> for InBlock<TInput, 
     }
 }
 
-
-
-impl<TInput: 'static, TCollected: 'static + Send> InBlock<TInput, TCollected> {
+impl<
+        TInput: 'static + Send,
+        TCollected: 'static + Send,
+        THandler: In<TInput, TCollected> + Send + 'static,
+        TFactory: FnMut() -> THandler,
+    > InBlock<TInput, TCollected, TFactory>
+{
     pub fn monitor_posts(&mut self) -> MonitorLoop {
         match self.ordering {
             OrderingMode::Ordered => self.monitor_ordered(),
-            OrderingMode::Unordered => self.monitor_unordered()
+            OrderingMode::Unordered => self.monitor_unordered(),
         }
-        
     }
 
     fn monitor_unordered(&mut self) -> MonitorLoop {
         let queue = self.work_queue.clone();
 
-        let mut info = InBlockInfo {
-            handler: (self.handler)()
-        };
+        let mut handler = (self.handler)();
 
         let arc_collected = self.collected_items.clone();
 
@@ -105,12 +103,10 @@ impl<TInput: 'static, TCollected: 'static + Send> InBlock<TInput, TCollected> {
                 let item = queue.wait_and_dequeue();
                 match item {
                     TimestampedWorkItem(WorkItem::Value(val), order) => {
-                        let collected = info.handler.process(val, order);
+                        let collected = handler.process(val, order);
                         (*collected_list).push(collected);
-                    },
-                    TimestampedWorkItem(WorkItem::Dropped, order) => {
-                        ()
                     }
+                    TimestampedWorkItem(WorkItem::Dropped, order) => (),
                     TimestampedWorkItem(WorkItem::Stop, _) => {
                         break;
                     }
@@ -121,10 +117,9 @@ impl<TInput: 'static, TCollected: 'static + Send> InBlock<TInput, TCollected> {
 
     pub fn monitor_ordered(&mut self) -> MonitorLoop {
         let storage = self.ordered_work.clone();
-        
-        let mut info = InBlockInfo {
-            handler: (self.handler)()
-        };
+
+        let mut handler = (self.handler)();
+
         let arc_collected = self.collected_items.clone();
 
         MonitorLoop::new(move || {
@@ -136,7 +131,7 @@ impl<TInput: 'static, TCollected: 'static + Send> InBlock<TInput, TCollected> {
                     TimestampedWorkItem(WorkItem::Value(val), order) => {
                         debug_assert!(order == next_item);
                         next_item += 1;
-                        let collected: TCollected = info.handler.process(val, order);
+                        let collected: TCollected = handler.process(val, order);
                         (*collected_list).push(collected);
                     }
                     TimestampedWorkItem(WorkItem::Dropped, order) => {
@@ -149,12 +144,16 @@ impl<TInput: 'static, TCollected: 'static + Send> InBlock<TInput, TCollected> {
             }
         })
     }
-
 }
 
-
-impl<TInput, TCollected> InBlock<TInput, TCollected> {
-    pub fn new(behavior: BlockMode, factory: Box<FnMut() -> Box<dyn In<TInput, TCollected>>>) -> InBlock<TInput, TCollected> {
+impl<
+        TInput,
+        TCollected,
+        THandler: In<TInput, TCollected> + Send + 'static,
+        TFactory: FnMut() -> THandler,
+    > InBlock<TInput, TCollected, TFactory>
+{
+    pub fn new(behavior: BlockMode, factory: TFactory) -> InBlock<TInput, TCollected, TFactory> {
         match behavior {
             BlockMode::Parallel(_) => unimplemented!("parallel inblocks not implemented"),
             BlockMode::Sequential(ordering) => InBlock {
@@ -163,10 +162,8 @@ impl<TInput, TCollected> InBlock<TInput, TCollected> {
                 ordering: ordering,
                 ordered_work: BlockingOrderedSet::new(),
                 counter: AtomicUsize::new(0),
-                collected_items: Arc::new(Mutex::new(vec![]))
+                collected_items: Arc::new(Mutex::new(vec![])),
             },
         }
     }
 }
-
-unsafe impl<TInput, TCollected> Send for InBlockInfo<TInput, TCollected> {}

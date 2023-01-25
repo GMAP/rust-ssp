@@ -1,0 +1,2 @@
+[toolchain]
+channel = "nightly" # this is necessary for cargo-expand to work

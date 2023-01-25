@@ -1,8 +1,6 @@
 use crate::blocks::*;
 use crate::work_storage::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::thread;
-use std::thread::JoinHandle;
 use std::{marker::PhantomData, sync::Arc};
 
 // Public API: A Input-Output node; transforms some value into another
@@ -80,12 +78,12 @@ impl<
 }
 
 impl<
-    TInput: 'static + Send,
-    TOutput: 'static,
-    TCollected: 'static,
-    TStage: InOut<TInput, TOutput> + Send + 'static,
-    TFactory: FnMut() -> TStage,
-    TNextStep: PipelineBlock<TOutput, TCollected> + Send + Sync + 'static,
+        TInput: 'static + Send,
+        TOutput: 'static,
+        TCollected: 'static,
+        TStage: InOut<TInput, TOutput> + Send + 'static,
+        TFactory: FnMut() -> TStage,
+        TNextStep: PipelineBlock<TOutput, TCollected> + Send + Sync + 'static,
     > InOutBlock<TInput, TOutput, TCollected, TStage, TFactory, TNextStep>
 {
     pub fn new(
@@ -110,7 +108,7 @@ impl<
             work_queue: BlockingQueue::new(),
             next_step: Arc::new(next_step),
             transformer_factory: transformer,
-            replicas: replicas,
+            replicas,
             _params: PhantomData,
         }
     }
@@ -123,7 +121,7 @@ impl<
             let queue = self.work_queue.clone();
             let alive_threads = alive_threads.clone();
 
-            let mut next_step = self.next_step.clone();
+            let next_step = self.next_step.clone();
             let mut transformer = (self.transformer_factory)();
 
             let monitor_loop = MonitorLoop::new(move || {

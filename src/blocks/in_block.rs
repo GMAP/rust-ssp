@@ -3,8 +3,6 @@ use crate::*;
 use parking_lot::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::thread;
-use std::thread::JoinHandle;
 use work_storage::{BlockingOrderedSet, BlockingQueue};
 use work_storage::{TimestampedWorkItem, WorkItem};
 
@@ -106,7 +104,7 @@ impl<
                         let collected = handler.process(val, order);
                         (*collected_list).push(collected);
                     }
-                    TimestampedWorkItem(WorkItem::Dropped, order) => (),
+                    TimestampedWorkItem(WorkItem::Dropped, _order) => (),
                     TimestampedWorkItem(WorkItem::Stop, _) => {
                         break;
                     }
@@ -134,7 +132,7 @@ impl<
                         let collected: TCollected = handler.process(val, order);
                         (*collected_list).push(collected);
                     }
-                    TimestampedWorkItem(WorkItem::Dropped, order) => {
+                    TimestampedWorkItem(WorkItem::Dropped, _order) => {
                         next_item += 1;
                     }
                     TimestampedWorkItem(WorkItem::Stop, _) => {
